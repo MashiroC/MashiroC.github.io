@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Golang,Web,后端,框架," />
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="最近闲来无事，捣鼓了一下Golang的Web框架。这一篇文章主要是梳理一下Web框架的执行逻辑，真正开始上手撸代码和踩坑要到下一篇。 因为是Java选手，刚开始学Go不久，代码风格可能比较Java。 另外有一些题外话，我最初开始学习Web框架是一本Java的讲解Web框架的书籍，名字叫《框架探险》。 但是Java的Web框架和Go的Web框架还是有不少的区别，学习Go的话不是很建议使用这本书。">
+<meta name="keywords" content="Golang,Web,后端,框架">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Golang框架探险（一）">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;01&#x2F;05&#x2F;Golang%E6%A1%86%E6%9E%B6%E6%8E%A2%E9%99%A9%EF%BC%88%E4%B8%80%EF%BC%89&#x2F;index.html">
+<meta property="og:site_name" content="MashiroC的奇思妙想">
+<meta property="og:description" content="最近闲来无事，捣鼓了一下Golang的Web框架。这一篇文章主要是梳理一下Web框架的执行逻辑，真正开始上手撸代码和踩坑要到下一篇。 因为是Java选手，刚开始学Go不久，代码风格可能比较Java。 另外有一些题外话，我最初开始学习Web框架是一本Java的讲解Web框架的书籍，名字叫《框架探险》。 但是Java的Web框架和Go的Web框架还是有不少的区别，学习Go的话不是很建议使用这本书。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="https:&#x2F;&#x2F;pic1.zhimg.com&#x2F;v2-0196d2bf38d11846785f643e5305d138_r.jpg">
+<meta property="og:image" content="https:&#x2F;&#x2F;pic2.zhimg.com&#x2F;v2-44c463c67f28bf63b16819c81abeab99_r.jpg">
+<meta property="og:updated_time" content="2019-11-01T14:02:52.417Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https:&#x2F;&#x2F;pic1.zhimg.com&#x2F;v2-0196d2bf38d11846785f643e5305d138_r.jpg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2019/01/05/Golang框架探险（一）/"/>
+
+
+
+
+
+  <title>Golang框架探险（一） | MashiroC的奇思妙想</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">MashiroC的奇思妙想</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/01/05/Golang%E6%A1%86%E6%9E%B6%E6%8E%A2%E9%99%A9%EF%BC%88%E4%B8%80%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="余歌">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="MashiroC的奇思妙想">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Golang框架探险（一）</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2019-01-05T21:48:39+08:00">
+                2019-01-05
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>最近闲来无事，捣鼓了一下Golang的Web框架。这一篇文章主要是梳理一下Web框架的执行逻辑，真正开始上手撸代码和踩坑要到下一篇。</p>
+<p>因为是Java选手，刚开始学Go不久，代码风格可能比较Java。</p>
+<p>另外有一些题外话，我最初开始学习Web框架是一本Java的讲解Web框架的书籍，名字叫《框架探险》。</p>
+<p>但是Java的Web框架和Go的Web框架还是有不少的区别，学习Go的话不是很建议使用这本书。</p>
+</blockquote>
+<h2 id="Web框架基本设计"><a href="#Web框架基本设计" class="headerlink" title="Web框架基本设计"></a>Web框架基本设计</h2><p>现代的Web后端框架中，所有框架的设计都会提供一部分共同的功能。这部分功能是Web框架的最基础功能：建立url对函数的映射，对 Request / Response 进行解析和封装。这些框架减轻了工作时的重复劳动与复杂繁琐的api调用，提升了应用的开发速度和可维护性。</p>
+<p>框架不管是使用过滤器这样的设计(比如struts)，还是直接使用一个函数处理所有的请求(比如spring、gin等等)，都是使用了单一入口，即所有请求通过原生的api进入到一个统一的处理模块。</p>
+<p>请求进来时，在这个单一模块中查找请求的路由(uri)和方法(method)所对应的处理这个路由的函数。若查找不到，则返回404(NOT FOUND)或405(MOTHOD NOW ALLOW)。</p>
+<p>找到对应的处理函数后取出这个函数，根据解析请求中的参数，如get请求中url的参数、post请求中body里的参数，解析并封装后执行该函数，得到返回对象再进行解析通过设定好的格式(json/xml/html等)序列化，最后原生的方法返回。</p>
+<p>下面是原生api和使用框架的对比：</p>
+<p><img src="https://pic1.zhimg.com/v2-0196d2bf38d11846785f643e5305d138_r.jpg" alt="使用框架的对比"></p>
+<p>我们希望使用框架能够写出如下的代码：</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> <span class="string">"begonia"</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span>&#123;</span><br><span class="line">    app := application.Init()</span><br><span class="line"></span><br><span class="line">  app.Get(<span class="string">"/hello"</span>, <span class="function"><span class="keyword">func</span><span class="params">(ctx *begonia.Context)</span></span> &#123;</span><br><span class="line">      ctx.String(<span class="string">"hello world"</span>)</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">  app.Post(<span class="string">"/welcome"</span>, <span class="function"><span class="keyword">func</span><span class="params">(ctx *begonia.Context)</span></span> &#123;</span><br><span class="line">      name := ctx.Param(<span class="string">"name"</span>)</span><br><span class="line">      ctx.String(<span class="string">"hello "</span> + name)</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    app.Start(<span class="number">1234</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于一个框架来说，最基础的模块就是路由模块了，即uri对执行函数的映射。下面一个部分我们来聊聊这个路由。</p>
+<h2 id="路由模块"><a href="#路由模块" class="headerlink" title="路由模块"></a>路由模块</h2><p>在阅读了多个语言多个框架的路由解析部分源码后，一般路由的实现大体分为两个思路：哈希表和Trie树(前缀树)。</p>
+<p>使用哈希表的为：</p>
+<ul>
+<li>Java Spring</li>
+</ul>
+<p>而我所看过的golang的框架，全部使用了Trie树来实现路由的解析分发</p>
+<ul>
+<li>beego</li>
+<li>gin</li>
+<li>echo</li>
+</ul>
+<p>我们这篇文章里简单来说一下两种实现的思路。</p>
+<h3 id="路由的哈希表实现"><a href="#路由的哈希表实现" class="headerlink" title="路由的哈希表实现"></a>路由的哈希表实现</h3><p>由于各大语言都拥有了原生的哈希表实现，这里我们就不赘述如何实现一个哈希表了，感兴趣可以自行 百度/谷歌 一下。</p>
+<blockquote>
+<p>Go的map、Java的HashMap、pthon的dict采用的是哈希表实现，而c++的map使用的是红黑树，哈希表是unordered_map，这里提醒一下。</p>
+</blockquote>
+<p>我们可以针对每个方法创建一个哈希表，每添加一个路由，在对应方法的哈希表下建立一个键值对即可。</p>
+<p>当请求进来时，根据uri查找路由，若查找得到则封装请求参数并执行。若查找不到，则去其他方法的哈希表里再查询一下，这一步查到的到返回<code>405 method not allow</code>，查找不到返回<code>404 not found</code>。</p>
+<h3 id="路由的Trie树实现"><a href="#路由的Trie树实现" class="headerlink" title="路由的Trie树实现"></a>路由的Trie树实现</h3><p>这里我聊一聊使用<code>压缩Trie树</code>来添加和查找路由，代码实现我们下一篇文章来专门分析。</p>
+<p><code>Trie</code>树又称<code>前缀树</code>、<code>字典树</code>，思路是将字符串按每个字符存储在树的节点上，具有公共前缀的单词共享一个或几个父节点。例如：”wechat”、”weibo”、”ware”、”hi”、”te”存储在<code>Trie树</code>上的情况如图所示</p>
+<p><img src="https://pic2.zhimg.com/v2-44c463c67f28bf63b16819c81abeab99_r.jpg" alt="Trie树"></p>
+<p>但是对于url来说，会有很多的uri具有公共前缀，但是具有较长的非公共的后缀，这个时候我们就需要使用到<code>压缩Trie树</code>了。</p>
+<p><code>压缩Trie树</code>其实是上面的<code>普通Trie树</code>的升级版，比<code>普通Trie树</code>占用更少的内存空间。大题思路是在<code>普通Trie树</code>上将长链压缩为一个节点。上图所示的数据结构压缩后如下图所示：</p>
+<p>!(压缩Trie树)[<a href="https://pic3.zhimg.com/v2-87159d101733525f6d463bc725ab2a2a_r.jpg]" target="_blank" rel="noopener">https://pic3.zhimg.com/v2-87159d101733525f6d463bc725ab2a2a_r.jpg]</a></p>
+<p>对比上面的普通Trie树，不难发现每个节点不存在单独的子节点，没有单独的长链存在了。</p>
+<h2 id="写在最后"><a href="#写在最后" class="headerlink" title="写在最后"></a>写在最后</h2><p>在Web框架中除了路由，还拥有其他非常重要的模块。这一篇文章只是一个简单的Web框架针对路由的一些分析。在下一篇我会详细分析并使用代码实现压缩Trie树路由</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Golang/" rel="tag"># Golang</a>
+          
+            <a href="/tags/Web/" rel="tag"># Web</a>
+          
+            <a href="/tags/%E5%90%8E%E7%AB%AF/" rel="tag"># 后端</a>
+          
+            <a href="/tags/%E6%A1%86%E6%9E%B6/" rel="tag"># 框架</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/11/01/%E4%BD%BF%E7%94%A8netty%E6%90%AD%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E7%9A%84%E8%81%8A%E5%A4%A9%E5%AE%A4/" rel="prev" title="使用netty搭建一个简单的聊天室（一）">
+                使用netty搭建一个简单的聊天室（一） <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image"
+                src="/images/avatar.jpg"
+                alt="余歌" />
+            
+              <p class="site-author-name" itemprop="name">余歌</p>
+              <p class="site-description motion-element" itemprop="description">大脑就像肌肉一样，当我们使用时会感到愉悦。理解是充满欢乐的。 ———卡尔·萨根</p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/%7C%7C%20archive">
+              
+                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Web框架基本设计"><span class="nav-number">1.</span> <span class="nav-text">Web框架基本设计</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#路由模块"><span class="nav-number">2.</span> <span class="nav-text">路由模块</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#路由的哈希表实现"><span class="nav-number">2.1.</span> <span class="nav-text">路由的哈希表实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#路由的Trie树实现"><span class="nav-number">2.2.</span> <span class="nav-text">路由的Trie树实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#写在最后"><span class="nav-number">3.</span> <span class="nav-text">写在最后</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">余歌</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
