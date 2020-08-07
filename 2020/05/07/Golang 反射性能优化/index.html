@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Golang,后端,性能," />
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Golang的反射最为人诟病的就是它极差的性能，接下来我们尝试优化它的性能。 如果我们使用正常的流程来创建一个对象，将会是如下的代码片段： 1234567891011type People struct &amp;#123;    Age   int    Name  string&amp;#125;func New() *People &amp;#123;    return &amp;amp;People&amp;#123;">
+<meta name="keywords" content="Golang,后端,性能">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Golang 反射性能优化">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;05&#x2F;07&#x2F;Golang%20%E5%8F%8D%E5%B0%84%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96&#x2F;index.html">
+<meta property="og:site_name" content="MashiroC的奇思妙想">
+<meta property="og:description" content="Golang的反射最为人诟病的就是它极差的性能，接下来我们尝试优化它的性能。 如果我们使用正常的流程来创建一个对象，将会是如下的代码片段： 1234567891011type People struct &amp;#123;    Age   int    Name  string&amp;#125;func New() *People &amp;#123;    return &amp;amp;People&amp;#123;">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2020-08-07T08:04:37.672Z">
+<meta name="twitter:card" content="summary">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2020/05/07/Golang 反射性能优化/"/>
+
+
+
+
+
+  <title>Golang 反射性能优化 | MashiroC的奇思妙想</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">MashiroC的奇思妙想</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/05/07/Golang%20%E5%8F%8D%E5%B0%84%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="余歌">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="MashiroC的奇思妙想">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Golang 反射性能优化</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2020-05-07T16:02:02+08:00">
+                2020-05-07
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>Golang的反射最为人诟病的就是它极差的性能，接下来我们尝试优化它的性能。</p>
+<p>如果我们使用正常的流程来创建一个对象，将会是如下的代码片段：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> People <span class="keyword">struct</span> &#123;</span><br><span class="line">    Age   <span class="keyword">int</span></span><br><span class="line">    Name  <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">()</span> *<span class="title">People</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;People&#123;</span><br><span class="line">        Age:   <span class="number">18</span>,</span><br><span class="line">        Name:  <span class="string">"shiina"</span>,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>以上的代码非常好读，但是如果我们要开发一款框架，接收的类型非常有可能是动态的、不确定的，那么就会使用到<code>反射(Reflect)</code>功能，使用反射来创建一个如上的<code>Person</code>对象大概是如下的代码片段：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewUseReflect</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    <span class="keyword">var</span> p People</span><br><span class="line">    t := reflect.TypeOf(p)</span><br><span class="line">    v := reflect.New(t)</span><br><span class="line">    v.Elem().Field(<span class="number">0</span>).Set(reflect.ValueOf(<span class="number">18</span>))</span><br><span class="line">    v.Elem().Field(<span class="number">1</span>).Set(reflect.ValueOf(<span class="string">"shiina"</span>))</span><br><span class="line">    <span class="keyword">return</span> v.Interface()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如上是一段普通的反射代码，既然大家都说<code>Go</code>的反射性能极差，那么我们就来自己看一下它的性能和上一个我们正常创建<code>Person</code>对象比性能差了多少。</p>
+<h2 id="简单的性能测试"><a href="#简单的性能测试" class="headerlink" title="简单的性能测试"></a>简单的性能测试</h2><p>让我们先用<code>Go</code>自带的<code>go bench</code>来分析一下它的性能</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">BenchmarkNew</span><span class="params">(b *testing.B)</span></span> &#123;</span><br><span class="line">    b.ReportAllocs()</span><br><span class="line">    b.ResetTimer()</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; b.N; i++ &#123;</span><br><span class="line">        New()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">BenchmarkNewUseReflect</span><span class="params">(b *testing.B)</span></span> &#123;</span><br><span class="line">    b.ReportAllocs()</span><br><span class="line">    b.ResetTimer()</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; b.N; i++ &#123;</span><br><span class="line">        NewUseReflect()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们得到的测试结果如下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkNew</span><br><span class="line">BenchmarkNew-16                 1000000000           1.55 ns/op        0 B/op          0 allocs/op</span><br><span class="line">BenchmarkNewUseReflect</span><br><span class="line">BenchmarkNewUseReflect-16        4787185           248 ns/op          64 B/op          2 allocs/op</span><br></pre></td></tr></table></figure>
+
+<p>我们能够发现使用反射的耗时是不使用的<strong>160倍</strong>左右</p>
+<h2 id="性能损耗的猜测"><a href="#性能损耗的猜测" class="headerlink" title="性能损耗的猜测"></a>性能损耗的猜测</h2><p>那么反射创建对象，主要的性能损耗在哪里呢？我们先进行一个实验：</p>
+<p>并且当我们增加更多的结构体成员变量，比如增加两个<code>string</code>类型的成员变量，进行一次性能测试，然后再去掉所有的成员变量，进行一次性能测试。</p>
+<ul>
+<li>四个成员变量：</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> People <span class="keyword">struct</span> &#123;</span><br><span class="line">    Age   <span class="keyword">int</span></span><br><span class="line">    Name  <span class="keyword">string</span></span><br><span class="line">    Test1 <span class="keyword">string</span></span><br><span class="line">    Test2 <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;People&#123;</span><br><span class="line">        Age:  <span class="number">18</span>,</span><br><span class="line">        Name: <span class="string">"shiina"</span>,</span><br><span class="line">    Test1: <span class="string">"test1"</span>,</span><br><span class="line">    Test2: <span class="string">"test2"</span>,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewUseReflect</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    <span class="keyword">var</span> p People</span><br><span class="line">    t := reflect.TypeOf(p)</span><br><span class="line">    v := reflect.New(t)</span><br><span class="line">    v.Elem().Field(<span class="number">0</span>).Set(reflect.ValueOf(<span class="number">18</span>))</span><br><span class="line">    v.Elem().Field(<span class="number">1</span>).Set(reflect.ValueOf(<span class="string">"shiina"</span>))</span><br><span class="line">    v.Elem().Field(<span class="number">2</span>).Set(reflect.ValueOf(<span class="string">"test1"</span>))</span><br><span class="line">    v.Elem().Field(<span class="number">3</span>).Set(reflect.ValueOf(<span class="string">"test2"</span>))</span><br><span class="line">    <span class="keyword">return</span> v.Interface()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">——————————————————————————————————————————</span><br><span class="line">BenchmarkNew</span><br><span class="line">BenchmarkNew<span class="number">-16</span>                 <span class="number">1000000000</span>           <span class="number">1.12</span> ns/op        <span class="number">0</span> B/op          <span class="number">0</span> allocs/op</span><br><span class="line">BenchmarkNewUseReflect</span><br><span class="line">BenchmarkNewUseReflect<span class="number">-16</span>        <span class="number">3334735</span>           <span class="number">366</span> ns/op         <span class="number">128</span> B/op          <span class="number">2</span> allocs/op</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>无成员变量：</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> People <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;People&#123;&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewUseReflect</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    <span class="keyword">var</span> p People</span><br><span class="line">    t := reflect.TypeOf(p)</span><br><span class="line">    v := reflect.New(t)</span><br><span class="line">    <span class="keyword">return</span> v.Interface()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">——————————————————————————————————————————</span><br><span class="line">BenchmarkNew</span><br><span class="line">BenchmarkNew<span class="number">-16</span>                 <span class="number">1000000000</span>           <span class="number">1.32</span> ns/op        <span class="number">0</span> B/op          <span class="number">0</span> allocs/op</span><br><span class="line">BenchmarkNewUseReflect</span><br><span class="line">BenchmarkNewUseReflect<span class="number">-16</span>       <span class="number">17362648</span>            <span class="number">62.3</span> ns/op         <span class="number">0</span> B/op          <span class="number">0</span> allocs/op</span><br></pre></td></tr></table></figure>
+
+<p>我们猜测，反射性能的损耗具体分为两个部分，一个部分是<code>reflect.New()</code>，另一个部分是<code>value.Field().Set()</code></p>
+<p>这时候我们可以使用<code>Go</code>原生自带的性能分析工具<code>pprof</code>来分析一下它们的主要耗时，来验证我们的猜测。</p>
+<p>我们对四个成员变量测试用例使用<code>pprof</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 生成测试数据</span></span><br><span class="line">kieranhu@KIERANHU-MC0 ~/Downloads&gt; go <span class="built_in">test</span> -bench=. -benchmem -memprofile memprofile.out -cpuprofile profile.out</span><br><span class="line"><span class="comment"># 分析测试数据</span></span><br><span class="line">kieranhu@KIERANHU-MC0 ~/Downloads&gt; go tool pprof ./profile.out</span><br><span class="line">Type: cpu</span><br><span class="line">Time: Apr 24, 2020 at 7:38pm (CST)</span><br><span class="line">Duration: 2.02s, Total samples = 1.92s (94.91%)</span><br><span class="line">Entering interactive mode (<span class="built_in">type</span> <span class="string">"help"</span> <span class="keyword">for</span> commands, <span class="string">"o"</span> <span class="keyword">for</span> options)</span><br><span class="line">(pprof) list NewUseReflect</span><br></pre></td></tr></table></figure>
+
+<p>我们使用pprof得到了该函数的主要耗时，可以发现与我们的猜测无误，耗时主要分为三个部分：<code>reflect.TypeOf()</code>,<code>reflect.New()</code>,<code>value.Field().Set()</code>,其中我们可以把<code>reflect.TypeOf()</code>放到函数外，在初始化的时候生成，接下来我们主要关注<code>value.Fidle().Set()</code></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">ROUTINE ======================== begonia.NewUseReflect in /Users/kieranhu/go/src/begonia/reflect_test.go</span><br><span class="line">      60ms      2.17s (flat, cum) 64.97% of Total</span><br><span class="line">         .          .     29:</span><br><span class="line">      10ms       10ms     30:func NewUseReflect() interface&#123;&#125; &#123;</span><br><span class="line">         .          .     31:   var p People</span><br><span class="line">      10ms      580ms     32:   t := reflect.TypeOf(p)</span><br><span class="line">         .      440ms     33:   v := reflect.New(t)</span><br><span class="line">      10ms      220ms     34:   v.Elem().Field(0).Set(reflect.ValueOf(18))</span><br><span class="line">      10ms      250ms     35:   v.Elem().Field(1).Set(reflect.ValueOf(&quot;shiina&quot;))</span><br><span class="line">         .      280ms     36:   v.Elem().Field(2).Set(reflect.ValueOf(&quot;test1&quot;))</span><br><span class="line">      10ms      220ms     37:   v.Elem().Field(3).Set(reflect.ValueOf(&quot;test2&quot;))</span><br><span class="line">      10ms      170ms     38:   return v.Interface()</span><br><span class="line">         .          .     39:&#125;</span><br><span class="line">         .          .     40:</span><br></pre></td></tr></table></figure>
+
+<h2 id="干掉-value-Field-Set"><a href="#干掉-value-Field-Set" class="headerlink" title="干掉 value.Field().Set()"></a>干掉 value.Field().Set()</h2><p>我们先从怎么不用xxx=xxx进行赋值说起。</p>
+<h3 id="unsafe"><a href="#unsafe" class="headerlink" title="unsafe"></a>unsafe</h3><p><code>Go</code>中有一个包叫<code>unsafe</code>,顾名思义，它不安全，因为它可以直接操作内存。我们可以使用<code>unsafe</code>，来对一个字符串进行赋值，具体的步骤大概如下：</p>
+<ul>
+<li>获得该字符串的地址</li>
+<li>对该地址赋值</li>
+</ul>
+<p>我们通过四行就可以完成上面的操作：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">    str := <span class="string">""</span></span><br><span class="line">    <span class="comment">// 获得该字符串的地址</span></span><br><span class="line">    p := <span class="keyword">uintptr</span>(unsafe.Pointer(&amp;str))</span><br><span class="line">    <span class="comment">// 在该地址上赋值</span></span><br><span class="line">    *(*<span class="keyword">string</span>)(unsafe.Pointer(p))=<span class="string">"test"</span></span><br><span class="line">    fmt.Println(str)</span><br><span class="line">-----------------</span><br><span class="line">test</span><br></pre></td></tr></table></figure>
+
+<p>当我们能够使用<code>unsafe</code>来操作内存时，就可以进一步尝试操作结构体了。</p>
+<h3 id="操作结构体"><a href="#操作结构体" class="headerlink" title="操作结构体"></a>操作结构体</h3><p>我们通过上述代码，得到一个结论：</p>
+<ul>
+<li><strong>只要我们知道内存地址，就可以操作任意变量。</strong></li>
+</ul>
+<p>接下来我们可以尝试去操作结构体了。</p>
+<p><code>Go</code>的结构体有以下的两个特点：</p>
+<ul>
+<li>结构体的成员变量是顺序存储的</li>
+<li>结构体第一个成员变量的地址就是该结构体的地址。</li>
+</ul>
+<p>根据以上两点，以及刚刚我们得到的结论，我们可能够得到以下的方法，来干掉<code>value.Field().Set()</code></p>
+<ul>
+<li>获得结构体地址</li>
+<li>获得结构体内成员变量的偏移量</li>
+<li>得到结构体成员变量地址</li>
+<li>修改变量值</li>
+</ul>
+<p>我们逐个来获得获得。</p>
+<p><code>Go</code>中<code>interface</code>类型是以这样的形式保存的：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// emptyInterface is the header for an interface&#123;&#125; value.</span></span><br><span class="line"><span class="keyword">type</span> emptyInterface <span class="keyword">struct</span> &#123;</span><br><span class="line">    typ  *rtype</span><br><span class="line">    word unsafe.Pointer</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个结构体的定义可以在<code>reflect/Value.go</code>找到。</p>
+<p>在这个结构体中<code>typ</code>是该<code>interface</code>的具体类型，<code>word</code>指针保存了指向结构体的地址。</p>
+<p>现在我们了解了<code>interface</code>的存储类型后，我们只需要将一个<code>空接口interface{}</code>转换为<code>emptyInterface</code>类型，然后得到其中的<code>word</code>，就可以拿到结构体的地址了，即解决了第一步。</p>
+<h3 id="结构体类型强转"><a href="#结构体类型强转" class="headerlink" title="结构体类型强转"></a>结构体类型强转</h3><p>先用下面这段代码示例，来解决一下不同结构体之间的转换：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Test1 <span class="keyword">struct</span> &#123;</span><br><span class="line">    Test1 <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Test2 <span class="keyword">struct</span> &#123;</span><br><span class="line">    test2 <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TestStruct</span><span class="params">(t *testing.T)</span></span> &#123;</span><br><span class="line">    t1 := Test1&#123;</span><br><span class="line">        Test1: <span class="string">"hello"</span>,</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    t2 := *(*Test2)(unsafe.Pointer(&amp;t1))</span><br><span class="line">    fmt.Println(t2)</span><br><span class="line">&#125;</span><br><span class="line">----------------</span><br><span class="line">&#123;hello&#125;</span><br></pre></td></tr></table></figure>
+
+<p>然后我们更换两个结构体中的成员变量类型，再尝试一下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Test1 <span class="keyword">struct</span> &#123;</span><br><span class="line">    a <span class="keyword">int32</span></span><br><span class="line">    b []<span class="keyword">byte</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Test2 <span class="keyword">struct</span> &#123;</span><br><span class="line">    b <span class="keyword">int16</span></span><br><span class="line">    a <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TestStruct</span><span class="params">(t *testing.T)</span></span> &#123;</span><br><span class="line">    t1 := Test1&#123;</span><br><span class="line">        a:<span class="number">1</span>,</span><br><span class="line">        b:[]<span class="keyword">byte</span>(<span class="string">"asdasd"</span>),</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    t2 := *(*Test2)(unsafe.Pointer(&amp;t1))</span><br><span class="line">    fmt.Println(t2)</span><br><span class="line">&#125;</span><br><span class="line">----------------</span><br><span class="line">&#123;<span class="number">1</span> asdasd&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们可以发现，后面这次尝试两个结构体的类型完全不同，但是其中int32和int16的存储方式相同，[]byte和string的存储方式相同，我们可以得出一个简单的结论：</p>
+<ul>
+<li><strong>不论类型签名是否相同，只要底层存储方式相同，我们就可以强制转换，并且可以突破私有成员变量限制。</strong></li>
+</ul>
+<p>通过上面我们得到的结论，可以将<code>reflect/value.go</code>里面的<code>emptyInterface</code>类型复制出来。然后我们对<code>interface</code>强转并取到<code>word</code>，就可以拿到结构体的地址了。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> emptyInterface <span class="keyword">struct</span> &#123;</span><br><span class="line">    typ  *<span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    word unsafe.Pointer</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TestStruct</span><span class="params">(t *testing.T)</span></span> &#123;</span><br><span class="line">    <span class="keyword">var</span> in <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">    in = People&#123;</span><br><span class="line">        Age:   <span class="number">18</span>,</span><br><span class="line">        Name:  <span class="string">"shiina"</span>,</span><br><span class="line">        Test1: <span class="string">"test1"</span>,</span><br><span class="line">        Test2: <span class="string">"test2"</span>,</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    t2 := <span class="keyword">uintptr</span>(((*emptyInterface)(unsafe.Pointer(&amp;in))).word)</span><br><span class="line">    *(*<span class="keyword">int</span>)(unsafe.Pointer(t2))=<span class="number">111</span></span><br><span class="line">    fmt.Println(in)</span><br><span class="line">&#125;</span><br><span class="line">---------------</span><br><span class="line">&#123;<span class="number">111</span> shiina test1 test2&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们获取了结构体地址后，根据结构体地址，修改了结构体内第一个成员变量的值，接下来我们开始进行第二步：得到结构体成员变量的偏移量</p>
+<p><strong>我们可以通过反射，来轻松的获得每一个成员变量的偏移量，进而根据结构体的地址，获得每一个成员变量的地址。</strong></p>
+<p>当我们获得了每一个成员变量的地址后，就可以很轻易的修改它了。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> in <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">    in = People&#123;</span><br><span class="line">        Age:   <span class="number">18</span>,</span><br><span class="line">        Name:  <span class="string">"shiina"</span>,</span><br><span class="line">        Test1: <span class="string">"test1"</span>,</span><br><span class="line">        Test2: <span class="string">"test2"</span>,</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    typeP := reflect.TypeOf(in)</span><br><span class="line">    offset1 := typeP.Field(<span class="number">1</span>).Offset</span><br><span class="line">    offset2 := typeP.Field(<span class="number">2</span>).Offset</span><br><span class="line">    offset3 := typeP.Field(<span class="number">3</span>).Offset</span><br><span class="line"></span><br><span class="line">    t2 := <span class="keyword">uintptr</span>(((*emptyInterface)(unsafe.Pointer(&amp;in))).word)</span><br><span class="line"></span><br><span class="line">    *(*<span class="keyword">int</span>)(unsafe.Pointer(t2)) = <span class="number">111</span></span><br><span class="line">    *(*<span class="keyword">string</span>)(unsafe.Pointer(t2 + offset1)) = <span class="string">"hello"</span></span><br><span class="line">    *(*<span class="keyword">string</span>)(unsafe.Pointer(t2 + offset2)) = <span class="string">"hello1"</span></span><br><span class="line">    *(*<span class="keyword">string</span>)(unsafe.Pointer(t2 + offset3)) = <span class="string">"hello2"</span></span><br><span class="line">    fmt.Println(in)</span><br><span class="line">---------------------</span><br><span class="line">&#123;<span class="number">111</span> hello hello1 hello2&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们刚刚成功的利用地址修改了结构体的成员变量，没有使用到<code>value.Field().Set()</code>。接下来我们利用刚刚的技巧，修改反射函数，并再次进行性能测试。</p>
+<p>我们保留以前的反射函数做对比，新建一个<code>NewQuickReflect()</code>来使用这种技巧创建对象：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> (</span><br><span class="line">    offset1 <span class="keyword">uintptr</span></span><br><span class="line">    offset2 <span class="keyword">uintptr</span></span><br><span class="line">    offset3 <span class="keyword">uintptr</span></span><br><span class="line">    p       People</span><br><span class="line">    t       = reflect.TypeOf(p)</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">    offset1 = t.Field(<span class="number">1</span>).Offset</span><br><span class="line">    offset2 = t.Field(<span class="number">2</span>).Offset</span><br><span class="line">    offset3 = t.Field(<span class="number">3</span>).Offset</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> People <span class="keyword">struct</span> &#123;</span><br><span class="line">    Age   <span class="keyword">int</span></span><br><span class="line">    Name  <span class="keyword">string</span></span><br><span class="line">    Test1 <span class="keyword">string</span></span><br><span class="line">    Test2 <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> emptyInterface <span class="keyword">struct</span> &#123;</span><br><span class="line">    typ  *<span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    word unsafe.Pointer</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">()</span> *<span class="title">People</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;People&#123;</span><br><span class="line">        Age:  <span class="number">18</span>,</span><br><span class="line">        Name: <span class="string">"shiina"</span>,</span><br><span class="line">    Test1: <span class="string">"test1"</span>,</span><br><span class="line">        Test2: <span class="string">"test2"</span>,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewUseReflect</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    v := reflect.New(t)</span><br><span class="line"></span><br><span class="line">    v.Elem().Field(<span class="number">0</span>).Set(reflect.ValueOf(<span class="number">18</span>))</span><br><span class="line">    v.Elem().Field(<span class="number">1</span>).Set(reflect.ValueOf(<span class="string">"shiina"</span>))</span><br><span class="line">    v.Elem().Field(<span class="number">2</span>).Set(reflect.ValueOf(<span class="string">"test1"</span>))</span><br><span class="line">    v.Elem().Field(<span class="number">3</span>).Set(reflect.ValueOf(<span class="string">"test2"</span>))</span><br><span class="line">    <span class="keyword">return</span> v.Interface()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewQuickReflect</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    v := reflect.New(t)</span><br><span class="line"></span><br><span class="line">    p := v.Interface()</span><br><span class="line">    ptr0 := <span class="keyword">uintptr</span>((*emptyInterface)(unsafe.Pointer(&amp;p)).word)</span><br><span class="line">    ptr1 := ptr0 + offset1</span><br><span class="line">    ptr2 := ptr0 + offset2</span><br><span class="line">    ptr3 := ptr0 + offset3</span><br><span class="line">    *((*<span class="keyword">int</span>)(unsafe.Pointer(ptr0))) = <span class="number">18</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr1))) = <span class="string">"shiina"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr2))) = <span class="string">"test1"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr3))) = <span class="string">"test2"</span></span><br><span class="line">    <span class="keyword">return</span> p</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">BenchmarkNew</span><span class="params">(b *testing.B)</span></span> &#123;</span><br><span class="line">    b.ReportAllocs()</span><br><span class="line">    b.ResetTimer()</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; b.N; i++ &#123;</span><br><span class="line">        New()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">BenchmarkNewUseReflect</span><span class="params">(b *testing.B)</span></span> &#123;</span><br><span class="line">    b.ReportAllocs()</span><br><span class="line">    b.ResetTimer()</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; b.N; i++ &#123;</span><br><span class="line">        NewUseReflect()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">BenchmarkNewQuickReflect</span><span class="params">(b *testing.B)</span></span> &#123;</span><br><span class="line">    b.ReportAllocs()</span><br><span class="line">    b.ResetTimer()</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; b.N; i++ &#123;</span><br><span class="line">        NewQuickReflect()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>运行后我们的测试结果：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkNew</span><br><span class="line">BenchmarkNew-16                 1000000000           1.34 ns/op        0 B/op          0 allocs/op</span><br><span class="line">BenchmarkNewUseReflect</span><br><span class="line">BenchmarkNewUseReflect-16        3715539           276 ns/op          64 B/op          1 allocs/op</span><br><span class="line">BenchmarkNewQuickReflect</span><br><span class="line">BenchmarkNewQuickReflect-16     12772573            94.7 ns/op        64 B/op          1 allocs/op</span><br></pre></td></tr></table></figure>
+
+<p>可以看出我们的性能从<strong>原生205倍</strong>提升到了<strong>70倍</strong>，并且这个优化的程度将会随着结构体成员变量越多而越明显。</p>
+<p>我们对新写的<code>NewQuickReflect</code>函数使用<code>pprof</code>分析一下，继续观察有没有可以优化的点。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">ROUTINE ======================== begonia.NewQuickReflect <span class="keyword">in</span> /Users/kieranhu/go/src/begonia/reflect_test.go</span><br><span class="line">     120ms      1.07s (flat, cum) 28.53% of Total</span><br><span class="line">         .          .     57:</span><br><span class="line">         .          .     58:func NewQuickReflect() interface&#123;&#125; &#123;</span><br><span class="line">      40ms      800ms     59:   v := reflect.New(t)</span><br><span class="line">         .          .     60:</span><br><span class="line">         .      180ms     61:   p := v.Interface()</span><br><span class="line">         .          .     62:   ptr0 := uintptr((*emptyInterface)(unsafe.Pointer(&amp;p)).word)</span><br><span class="line">      40ms       40ms     63:   ptr1 := ptr0 + offset1</span><br><span class="line">      10ms       10ms     64:   ptr2 := ptr0 + offset2</span><br><span class="line">         .          .     65:   ptr3 := ptr0 + offset3</span><br><span class="line">      10ms       10ms     66:   *((*int)(unsafe.Pointer(ptr0))) = 18</span><br><span class="line">         .       10ms     67:   *((*string)(unsafe.Pointer(ptr1))) = <span class="string">"shiina"</span></span><br><span class="line">         .          .     68:   *((*string)(unsafe.Pointer(ptr2))) = <span class="string">"test1"</span></span><br><span class="line">         .          .     69:   *((*string)(unsafe.Pointer(ptr3))) = <span class="string">"test2"</span></span><br><span class="line">      20ms       20ms     70:   <span class="built_in">return</span> p</span><br><span class="line">         .          .     71:&#125;</span><br><span class="line">         .          .     72:</span><br></pre></td></tr></table></figure>
+
+<p>我们能够发现最多的损耗花在了<code>reflect.New()</code>上，我们着手尝试对它进行优化。</p>
+<h2 id="干掉-reflect-New"><a href="#干掉-reflect-New" class="headerlink" title="干掉 reflect.New()"></a>干掉 reflect.New()</h2><h3 id="池化"><a href="#池化" class="headerlink" title="池化"></a>池化</h3><p>对于改善创建对象耗时来说，最简单的优化方式便是<strong>池化</strong>，我们利用<code>sync.pool</code>创建一个对象池，并且模拟对象池中资源充足的情况下的性能：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> (</span><br><span class="line">  <span class="comment">/**</span></span><br><span class="line"><span class="comment">  ...........</span></span><br><span class="line"><span class="comment">  **/</span></span><br><span class="line">  pool sync.Pool</span><br><span class="line">)</span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">  <span class="comment">/**</span></span><br><span class="line"><span class="comment">  ............</span></span><br><span class="line"><span class="comment">  **/</span></span><br><span class="line">    pool.New = <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">        <span class="keyword">return</span> reflect.New(t)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="number">100</span>; i++ &#123;</span><br><span class="line">        pool.Put(reflect.New(t).Elem())</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">  ............</span></span><br><span class="line"><span class="comment">  **/</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewQuickReflectWithPool</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">    p := pool.Get()</span><br><span class="line"></span><br><span class="line">    ptr0 := <span class="keyword">uintptr</span>((*emptyInterface)(unsafe.Pointer(&amp;p)).word)</span><br><span class="line">    ptr1 := ptr0 + offset1</span><br><span class="line">    ptr2 := ptr0 + offset2</span><br><span class="line">    ptr3 := ptr0 + offset3</span><br><span class="line"></span><br><span class="line">    *((*<span class="keyword">int</span>)(unsafe.Pointer(ptr0))) = <span class="number">18</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr1))) = <span class="string">"shiina"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr2))) = <span class="string">"test1"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr3))) = <span class="string">"test2"</span></span><br><span class="line">    <span class="keyword">return</span> p</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">BenchmarkQuickReflectWithPool</span><span class="params">(b *testing.B)</span></span> &#123;</span><br><span class="line">    b.ReportAllocs()</span><br><span class="line">    b.ResetTimer()</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; b.N; i++ &#123;</span><br><span class="line">        obj := NewQuickReflectWithPool()</span><br><span class="line">        pool.Put(obj)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在上述这个用例中，我们一拿到这个对象几乎就立即放回了对象池，模拟的是对象池资源充足情况下的性能：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkNew</span><br><span class="line">BenchmarkNew-16                         1000000000           1.26 ns/op        0 B/op          0 allocs/op</span><br><span class="line">BenchmarkNewUseReflect</span><br><span class="line">BenchmarkNewUseReflect-16                5515128           226 ns/op          64 B/op          1 allocs/op</span><br><span class="line">BenchmarkNewQuickReflect</span><br><span class="line">BenchmarkNewQuickReflect-16             21561645            91.4 ns/op        64 B/op          1 allocs/op</span><br><span class="line">BenchmarkQuickReflectWithPool</span><br><span class="line">BenchmarkQuickReflectWithPool-16        40770750            55.6 ns/op         0 B/op          0 allocs/op</span><br></pre></td></tr></table></figure>
+
+<p>我们可以发现在对象池对象充足的情况下，<strong>没有了malloc带来的耗时</strong>，我们的性能从<strong>原生72倍</strong>提升到<strong>原生的44倍</strong>。</p>
+<p>但是当对象池不充足情况下，就没有这么可喜的效率了。</p>
+<h3 id="另一个思路"><a href="#另一个思路" class="headerlink" title="另一个思路"></a>另一个思路</h3><p>我们能够发现现在主要的耗时都在利用反射的创建对象上，这个时候我脑海里有一个思路：</p>
+<p>在我们需要的是值类型(例如<code>Person{}</code>)，而不是指针的时候(例如<code>&amp;Person</code>)时，我们是不是可以利用Go的这个特性：</p>
+<ul>
+<li><strong>值类型传递值而不是指针的时候会进行拷贝</strong></li>
+</ul>
+<p>来在使用反射的前提下，利用值传递特性获得一个原生级别对象拷贝？</p>
+<p>如果不使用反射，已知类型的情况下会是如下的代码：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TestStruct</span><span class="params">(t *testing.T)</span></span> &#123;</span><br><span class="line">    p1 := People&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> p2 <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">    p2 = p1</span><br><span class="line"></span><br><span class="line">    ptr0 := <span class="keyword">uintptr</span>((*emptyInterface)(unsafe.Pointer(&amp;p2)).word)</span><br><span class="line">    ptr1 := ptr0 + offset1</span><br><span class="line">    ptr2 := ptr0 + offset2</span><br><span class="line">    ptr3 := ptr0 + offset3</span><br><span class="line"></span><br><span class="line">    *((*<span class="keyword">int</span>)(unsafe.Pointer(ptr0))) = <span class="number">18</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr1))) = <span class="string">"shiina"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr2))) = <span class="string">"test1"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr3))) = <span class="string">"test2"</span></span><br><span class="line"></span><br><span class="line">    fmt.Println(p1)</span><br><span class="line">    fmt.Println(p2)</span><br><span class="line">&#125;</span><br><span class="line">------------------------</span><br><span class="line">&#123;<span class="number">0</span>   &#125;</span><br><span class="line">&#123;<span class="number">18</span> shiina test1 test2&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们可以看到，我们使用这样一个值传递的特性，得到了一份<code>p1</code>的拷贝</p>
+<p>很可惜的是，当我们不能直接指定类型的时候，想象中这样场景一直实现不了，会直接修改原变量的值，最终我找到了这样的调用方法：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TestNew</span><span class="params">(t *testing.T)</span></span> &#123;</span><br><span class="line">    elemValue := reflect.New(reflect.TypeOf(People&#123;&#125;)).Elem()</span><br><span class="line">    p := elemValue.Interface()</span><br><span class="line"></span><br><span class="line">    ptr0 := <span class="keyword">uintptr</span>((*emptyInterface)(unsafe.Pointer(&amp;p)).word)</span><br><span class="line">    ptr1 := ptr0 + offset1</span><br><span class="line">    ptr2 := ptr0 + offset2</span><br><span class="line">    ptr3 := ptr0 + offset3</span><br><span class="line"></span><br><span class="line">    *((*<span class="keyword">int</span>)(unsafe.Pointer(ptr0))) = <span class="number">18</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr1))) = <span class="string">"shiina"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr2))) = <span class="string">"test1"</span></span><br><span class="line">    *((*<span class="keyword">string</span>)(unsafe.Pointer(ptr3))) = <span class="string">"test2"</span></span><br><span class="line"></span><br><span class="line">    fmt.Println(p)</span><br><span class="line">    fmt.Println(elemValue)</span><br><span class="line">&#125;</span><br><span class="line">-------------------</span><br><span class="line">&#123;<span class="number">18</span> shiina test1 test2&#125;</span><br><span class="line">&#123;<span class="number">0</span>   &#125;</span><br></pre></td></tr></table></figure>
+
+<p>每次<code>elemValue.Interface()</code>时都会拷贝一个新的对象，这是我们期待的结果，接下来我们将它和之前的池化等一起进行性能测试</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkNew</span><br><span class="line">BenchmarkNew-16                         1000000000           1.83 ns/op        0 B/op          0 allocs/op</span><br><span class="line">BenchmarkNewUseReflect</span><br><span class="line">BenchmarkNewUseReflect-16                2992928           372 ns/op         128 B/op          2 allocs/op</span><br><span class="line">BenchmarkNewQuickReflect</span><br><span class="line">BenchmarkNewQuickReflect-16             12648523            98.7 ns/op        64 B/op          1 allocs/op</span><br><span class="line">BenchmarkQuickReflectWithPool</span><br><span class="line">BenchmarkQuickReflectWithPool-16        40309711            58.2 ns/op         0 B/op          0 allocs/op</span><br><span class="line">BenchmarkNewWithElemReflect</span><br><span class="line">BenchmarkNewWithElemReflect-16          12700314            89.0 ns/op        64 B/op          1 allocs/op</span><br></pre></td></tr></table></figure>
+
+<p>结果比较沮丧，我们仅提升了<strong>不到10ns</strong>，从<strong>53倍</strong>提升到<strong>48倍</strong>，<strong>并且性能的提升也并不稳定</strong>。</p>
+<p>为此我们阅读<code>reflect.New()</code>和<code>elemValue.Interface()</code>源码，发现了如下的片段：</p>
+<ul>
+<li>reflect.New()</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">(typ Type)</span> <span class="title">Value</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> typ == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(<span class="string">"reflect: New(nil)"</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	t := typ.(*rtype)</span><br><span class="line">	ptr := unsafe_New(t)</span><br><span class="line">	fl := flag(Ptr)</span><br><span class="line">	<span class="keyword">return</span> Value&#123;t.ptrTo(), ptr, fl&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>elemValue.Interface()</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> v.flag&amp;flagAddr != <span class="number">0</span> &#123;</span><br><span class="line">   <span class="comment">// <span class="doctag">TODO:</span> pass safe boolean from valueInterface so</span></span><br><span class="line">   <span class="comment">// we don't need to copy if safe==true?</span></span><br><span class="line">   c := unsafe_New(t)</span><br><span class="line">   typedmemmove(t, c, ptr)</span><br><span class="line">   ptr = c</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>reflect.New()</code>的主要耗时都在这个<code>unsafe_New()</code>函数上，然而对于一个<code>elemValue</code>取<code>Interface()</code>时，反射还是会调用<code>unsafe_New()</code>函数来创建一个新值。</p>
+<p>当多次实验，性能测试之后，发现这种干掉<code>reflect.New()</code>的方式性能不够稳定，基本没有使用的必要。( T_T )</p>
+<h2 id="END"><a href="#END" class="headerlink" title="END"></a>END</h2><p>如上整个性能优化的从思路到实验，再到实现大概总共花了一周的空闲时间。越写越觉得我不像是在写Go而是在写c了。或许我应该让Go写的更像Go而不是想什么黑魔法来让Go更快(也更不安全)？很感谢需求不饱和让我还有摸鱼时间来研究这个(x</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Golang/" rel="tag"># Golang</a>
+          
+            <a href="/tags/%E5%90%8E%E7%AB%AF/" rel="tag"># 后端</a>
+          
+            <a href="/tags/%E6%80%A7%E8%83%BD/" rel="tag"># 性能</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/05/Golang%E6%A1%86%E6%9E%B6%E6%8E%A2%E9%99%A9%EF%BC%88%E4%B8%80%EF%BC%89/" rel="next" title="Golang框架探险（一）">
+                <i class="fa fa-chevron-left"></i> Golang框架探险（一）
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2020/07/26/RPC%E6%8E%A2%E8%B7%AF-%E4%B8%80/" rel="prev" title="RPC探路(一)">
+                RPC探路(一) <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image"
+                src="/images/avatar.jpg"
+                alt="余歌" />
+            
+              <p class="site-author-name" itemprop="name">余歌</p>
+              <p class="site-description motion-element" itemprop="description">大脑就像肌肉一样，当我们使用时会感到愉悦。理解是充满欢乐的。 ———卡尔·萨根</p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/%7C%7C%20archive">
+              
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">8</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#简单的性能测试"><span class="nav-number">1.</span> <span class="nav-text">简单的性能测试</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#性能损耗的猜测"><span class="nav-number">2.</span> <span class="nav-text">性能损耗的猜测</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#干掉-value-Field-Set"><span class="nav-number">3.</span> <span class="nav-text">干掉 value.Field().Set()</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#unsafe"><span class="nav-number">3.1.</span> <span class="nav-text">unsafe</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#操作结构体"><span class="nav-number">3.2.</span> <span class="nav-text">操作结构体</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#结构体类型强转"><span class="nav-number">3.3.</span> <span class="nav-text">结构体类型强转</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#干掉-reflect-New"><span class="nav-number">4.</span> <span class="nav-text">干掉 reflect.New()</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#池化"><span class="nav-number">4.1.</span> <span class="nav-text">池化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#另一个思路"><span class="nav-number">4.2.</span> <span class="nav-text">另一个思路</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#END"><span class="nav-number">5.</span> <span class="nav-text">END</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">余歌</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
